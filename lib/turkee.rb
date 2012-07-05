@@ -112,7 +112,7 @@ module Turkee
         hits.each do |hit|
           RTurk::Utilities.retry_on_unavailable { hit.expire! }
           assignments = nil
-          RTurk::Utilities.retry_on_unavailable { hit.assignments }
+          RTurk::Utilities.retry_on_unavailable { assignments = hit.assignments }
           assignments.each do |assignment|
             logger.info "Assignment status : #{assignment.status}"
             RTurk::Utilities.retry_on_unavailable { assignment.approve!('__clear_all_turks__approved__') } if assignment.status == 'Submitted'
