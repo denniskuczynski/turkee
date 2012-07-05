@@ -36,7 +36,9 @@ module Turkee
             hit   = RTurk::Hit.new(turk.hit_id)
 
             models = []
-            hit.assignments.each do |assignment|
+            assignments = nil
+            RTurk::Utilities.retry_on_unavailable { assignments = hit.assignments }
+            assignments.each do |assignment|
               next unless submitted?(assignment.status)
               next unless TurkeeImportedAssignment.find_by_assignment_id(assignment.id).nil?
 
@@ -71,15 +73,18 @@ module Turkee
       duration = lifetime.to_i
       f_url    = (full_url(opts[:form_url], params) || form_url(host, model, params))
 
-      h = RTurk::Hit.create(:title => hit_title) do |hit|
-        hit.assignments = num_assignments
-        hit.description = hit_description
-        hit.reward      = reward
-        hit.lifetime    = duration.days.seconds.to_i
-        hit.question(f_url, :frame_height => HIT_FRAMEHEIGHT)
-        unless qualifications.empty?
-          qualifications.each do |key, value|
-            hit.qualifications.add key, value
+      hit = nil
+      RTurk::Utilities.retry_on_unavailable do
+        hit = RTurk::Hit.create(:title => hit_title) do |hit|
+          hit.assignments = num_assignments
+          hit.description = hit_description
+          hit.reward      = reward
+          hit.lifetime    = duration.days.seconds.to_i
+          hit.question(f_url, :frame_height => HIT_FRAMEHEIGHT)
+          unless qualifications.empty?
+            qualifications.each do |key, value|
+              hit.qualifications.add key, value
+            end
           end
         end
       end
@@ -88,7 +93,7 @@ module Turkee
                         :hit_title           => hit_title,    :hit_description     => hit_description,
                         :hit_reward          => reward.to_f,  :hit_num_assignments => num_assignments.to_i,
                         :hit_lifetime        => lifetime,     :form_url            => f_url,
-                        :hit_url             => h.url,        :hit_id              => h.id,
+                        :hit_url             => hit.url,      :hit_id              => hit.id,
                         :task_type           => typ,          :complete            => false)
 
     end
@@ -134,7 +139,7 @@ module Turkee
     def self.check_hit_completeness(hit, turk, models)
       puts "#### turk.completed_assignments == turk.hit_num_assignments :: #{turk.completed_assignments} == #{turk.hit_num_assignments}"
       if turk.completed_assignments == turk.hit_num_assignments
-        hit.dispose!
+        RTurk::Utilities.retry_on_unavailable { hit.dispose! }
         turk.complete = true
         turk.save
         models.each { |model| model.hit_complete(turk) if model.respond_to?(:hit_complete) }
@@ -145,14 +150,18 @@ module Turkee
     def self.process_result(assignment, result, turk)
       if result.errors.size > 0
         logger.info "Errors : #{result.inspect}"
-        assignment.reject!('Failed to enter proper data.')
+        RTurk::Utilities.retry_on_unavailable { assignment.reject!('Failed to enter proper data.') }
       elsif result.respond_to?(:approve?)
         logger.debug "Approving : #{result.inspect}"
         increment_complete_assignments(turk)
-        result.approve? ? assignment.approve!('') : assignment.reject!('Rejected criteria.')
+        if result.approve?
+          RTurk::Utilities.retry_on_unavailable { assignment.approve!('') }
+        else
+          RTurk::Utilities.retry_on_unavailable { assignment.reject!('Rejected criteria.') }
+        end
       else
         increment_complete_assignments(turk)
-        assignment.approve!('')
+        RTurk::Utilities.retry_on_unavailable { assignment.approve!('') }
       end
     end
 
