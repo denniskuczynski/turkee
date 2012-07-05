@@ -99,38 +99,30 @@ module Turkee
       # Do NOT execute this function if we're in production mode
       raise "You can only clear turks in the sandbox/development environment unless you pass 'true' for the force flag." if Rails.env == 'production' && !force
 
-      hits = RTurk::Hit.all
-
-      logger.info "#{hits.size} reviewable hits. \n"
-
-      unless hits.empty?
-        logger.info "Approving all assignments and disposing of each hit."
-
+      while true
+        hits = nil
+        RTurk::Utilities.retry_on_unavailable { hits = RTurk::Hit.all }
+        
+        logger.info "Attempting to delete #{hits.size} hits.\n"
+        
+        break if hits.empty?
         hits.each do |hit|
-          begin
-            hit.expire!
-
-            hit.assignments.each do |assignment|
-
-              logger.info "Assignment status : #{assignment.status}"
-
-              assignment.approve!('__clear_all_turks__approved__') if assignment.status == 'Submitted'
-            end
-
-            turkee_task = TurkeeTask.find_by_hit_id(hit.id)
-            if turkee_task
-              turkee_task.complete = true
-              turkee_task.save
-            end
-
-            hit.dispose!
-          rescue Exception => e
-            # Probably a service unavailable
-            logger.error "Exception : #{e.to_s}"
+          RTurk::Utilities.retry_on_unavailable { hit.expire! }
+          assignments = nil
+          RTurk::Utilities.retry_on_unavailable { hit.assignments }
+          assignments.each do |assignment|
+            logger.info "Assignment status : #{assignment.status}"
+            RTurk::Utilities.retry_on_unavailable { assignment.approve!('__clear_all_turks__approved__') } if assignment.status == 'Submitted'
           end
+
+          turkee_task = TurkeeTask.find_by_hit_id(hit.id)
+          if turkee_task
+            turkee_task.complete = true
+            turkee_task.save
+          end
+          RTurk::Utilities.retry_on_unavailable { hit.dispose! }
         end
       end
-
     end
 
     private
