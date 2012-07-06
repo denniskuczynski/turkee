@@ -12,4 +12,5 @@ Factory.define :turkee_task, :class => Turkee::TurkeeTask do |s|
   s.hit_duration 1
   s.form_url "http://localhost/test_task/new"
   s.complete true
+  s.expired false
 end
