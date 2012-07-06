@@ -96,7 +96,7 @@ module Turkee
                         :hit_lifetime        => lifetime,     :hit_duration => duration,
                         :form_url            => f_url,        :hit_url             => hit.url,
                         :hit_id              => hit.id,       :task_type           => typ,
-                        :complete            => false)
+                        :complete            => false,        :expired             => false)
 
     end
 
