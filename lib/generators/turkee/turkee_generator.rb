@@ -26,6 +26,10 @@ class TurkeeGenerator < Rails::Generators::Base
 
     migration_template "add_completed_tasks.rb.erb", "db/migrate/add_completed_tasks.rb"
 
+    sleep 1
+
+    migration_template "add_task_expiration.rb.erb", "db/migrate/add_task_expiration.rb"
+
   end
 
   def create_initializer

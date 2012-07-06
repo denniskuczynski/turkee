@@ -24,6 +24,7 @@ ActiveRecord::Schema.define(:version => 1) do
     t.integer  "hit_lifetime"
     t.string   "form_url"
     t.boolean  "complete"
+    t.boolean  "expired"
   end
 end
 

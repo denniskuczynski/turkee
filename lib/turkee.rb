@@ -15,11 +15,11 @@ module Turkee
 
   class TurkeeTask < ActiveRecord::Base
     attr_accessible :sandbox, :hit_title, :hit_description, :hit_reward, :hit_num_assignments, :hit_lifetime,
-                    :form_url, :hit_url, :hit_id, :task_type, :complete
+                    :form_url, :hit_url, :hit_id, :task_type, :complete, :expired
 
     HIT_FRAMEHEIGHT     = 1000
 
-    scope :unprocessed_hits, :conditions => ['complete = ?', false]
+    scope :unprocessed_hits, :conditions => ['complete = ? and expired = ?', false, false]
 
     # Use this method to go out and retrieve the data for all of the posted Turk Tasks.
     #  Each specific TurkeeTask object (determined by task_type field) is in charge of
@@ -143,6 +143,16 @@ module Turkee
         turk.complete = true
         turk.save
         models.each { |model| model.hit_complete(turk) if model.respond_to?(:hit_complete) }
+      else
+        # Check expiration
+        details = nil
+        RTurk::Utilities.retry_on_unavailable { details = hit.details }
+        if details.expires_at <= Time.now
+          puts "Disposing expired HIT: #{details.expires_at}"
+          RTurk::Utilities.retry_on_unavailable { hit.dispose! }
+          turk.expired = true
+          turk.save
+        end
       end
     end
 
