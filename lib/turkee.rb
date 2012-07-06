@@ -150,7 +150,7 @@ module Turkee
         details = nil
         RTurk::Utilities.retry_on_unavailable { details = hit.details }
         if details.expires_at <= Time.now
-          puts "Disposing expired HIT: #{details.expires_at}"
+          logger.debug "Disposing expired HIT: #{details.expires_at}"
           RTurk::Utilities.retry_on_unavailable { hit.dispose! }
           turk.expired = true
           turk.save
